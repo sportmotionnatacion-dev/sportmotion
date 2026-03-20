@@ -581,7 +581,6 @@ function renderAdultosPage(filter){
   saveBtn.onclick=saveAdultos;
   saveRow.appendChild(saveBtn);
   list.appendChild(saveRow);
-  renderAdultosPage('');
 }
 
 
@@ -589,9 +588,7 @@ var _adultosHoy={};
 
 function markAdulto(nombre, val){
   _adultosHoy[nombre]=val;
-  // Auto-save and re-render
   _saveAdultosQuiet();
-  renderAdultosPage($('adultos-search')?$('adultos-search').value||''  :'');
 }
 
 function _saveAdultosQuiet(){
@@ -700,15 +697,7 @@ function goPage(p){
   if(p==='historial') renderHist($('hist-f').value||'');
   if(p==='config') loadCfgUI();
   if(p==='hidro') renderHidroPage();
-  if(p==='adultos'){
-    // Sincronizar primero si no hay adultos cargados
-    const hasAdultos=STUDENTS_DATA.some(function(s){return s.grupo==='Adultos';});
-    if(!hasAdultos){
-      syncSheets().then(function(){renderAdultosPage('');});
-    } else {
-      renderAdultosPage('');
-    }
-  }
+  if(p==='adultos') renderAdultosPage('');
 }
 
 function showTaking(){
