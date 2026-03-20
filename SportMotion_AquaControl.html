@@ -564,14 +564,10 @@ function renderAdultosPage(filter){
     btns.className='si-btns';
     const btnSi=document.createElement('button');
     btnSi.className='ab ab-si'+(asistioHoy==='Si'?' on':'');
-    btnSi.textContent='✓ Asistió';
+    btnSi.style.cssText='flex:1;padding:10px;font-size:13px;border-radius:8px;border:none;cursor:pointer;'+(asistioHoy==='Si'?'background:#16a34a;color:#fff;font-weight:700':'background:#f1f5f9;color:#475569');
+    btnSi.textContent=asistioHoy==='Si'?'✓ Presente':'✓ Marcar Asistencia';
     btnSi.onclick=(function(n){return function(){markAdulto(n,'Si');};})(stu.nombre);
-    const btnNo=document.createElement('button');
-    btnNo.className='ab ab-no'+(asistioHoy==='No'?' on':'');
-    btnNo.textContent='✗ Faltó';
-    btnNo.onclick=(function(n){return function(){markAdulto(n,'No');};})(stu.nombre);
     btns.appendChild(btnSi);
-    btns.appendChild(btnNo);
     div.appendChild(btns);
     list.appendChild(div);
   });
@@ -586,6 +582,111 @@ function renderAdultosPage(filter){
   saveRow.appendChild(saveBtn);
   list.appendChild(saveRow);
   renderAdultosPage('');
+}
+
+
+var _adultosHoy={};
+
+function markAdulto(nombre, val){
+  _adultosHoy[nombre]=val;
+  // Auto-save and re-render
+  _saveAdultosQuiet();
+  renderAdultosPage($('adultos-search')?$('adultos-search').value||''  :'');
+}
+
+function _saveAdultosQuiet(){
+  const tod=today();
+  const existing=ALL_S.find(function(s){return s.key==='Adultos|libre|libre|'+tod;});
+  const students=existing?existing.students.map(function(s){return Object.assign({},s);}):
+    STUDENTS_DATA.filter(function(s){return s.grupo==='Adultos';})
+      .map(function(s){return {nombre:s.nombre,asistio:'',frecuencia:s.frecuencia};});
+  Object.keys(_adultosHoy).forEach(function(nombre){
+    const st=students.find(function(s){return s.nombre===nombre;});
+    if(st) st.asistio=_adultosHoy[nombre];
+    else students.push({nombre:nombre,asistio:_adultosHoy[nombre],frecuencia:''});
+  });
+  const sess={key:'Adultos|libre|libre|'+tod,grupo:'Adultos',frecuencia:'libre',
+    horario:'libre',date:tod,teacher:'',students:students};
+  const idx=NEW_S.findIndex(function(s){return s.key===sess.key;});
+  if(idx>=0) NEW_S[idx]=sess; else NEW_S.push(sess);
+  localStorage.setItem('smSessions',JSON.stringify(NEW_S));
+  mergeAll();
+  pushToSheets(sess);
+}
+
+function saveAdultos(){
+  _saveAdultosQuiet();
+  _adultosHoy={};
+  toast('✅ Asistencia adultos guardada');
+  renderAdultosPage('');
+}
+
+// ── CIERRE AUTOMATICO SEMANAL ADULTOS ────────────────────────────────────────
+function checkWeeklyClose(){
+  const lastClose=localStorage.getItem('smLastWeekClose')||'';
+  const now=new Date();
+  const dow=now.getDay(); // 0=Dom
+  // Ejecutar cierre si es domingo y no se hizo hoy
+  const today=now.toISOString().substring(0,10);
+  if(dow===0 && lastClose!==today){
+    closeWeekAdultos();
+    localStorage.setItem('smLastWeekClose',today);
+  }
+}
+
+function closeWeekAdultos(){
+  const now=new Date();
+  const dayOfWeek=now.getDay()||7;
+  const lunes=new Date(now); lunes.setDate(now.getDate()-(dayOfWeek-1));
+  const sabado=new Date(lunes); sabado.setDate(lunes.getDate()+5);
+  function fmtD(d){return d.toISOString().substring(0,10);}
+  const semanaInicio=fmtD(lunes);
+  const semanaFin=fmtD(sabado);
+
+  // Contar asistencias de la semana
+  const semanaSessions=ALL_S.filter(function(s){
+    return s.grupo==='Adultos'&&s.date>=semanaInicio&&s.date<=semanaFin;
+  });
+  const asistSemana={};
+  semanaSessions.forEach(function(sess){
+    (sess.students||[]).forEach(function(st){
+      if(st.asistio==='Si'){
+        if(!asistSemana[st.nombre]) asistSemana[st.nombre]=0;
+        asistSemana[st.nombre]++;
+      }
+    });
+  });
+
+  // Para cada adulto, si no completó frecuencia marcar falta
+  const adultos=STUDENTS_DATA.filter(function(s){return s.grupo==='Adultos';});
+  const faltas=[];
+  adultos.forEach(function(stu){
+    const vino=asistSemana[stu.nombre]||0;
+    const freq=parseInt((stu.frecuencia||'2').replace(/[^0-9]/g,''))||2;
+    if(vino<freq){
+      faltas.push({
+        fecha: semanaFin,
+        grupo: 'Adultos',
+        frecuencia: stu.frecuencia||'',
+        horario: 'cierre-semana',
+        docente: '',
+        estudiante: stu.nombre,
+        asistio: 'No',
+        fueraHorario: 'No',
+        observacion: 'Cierre semanal - asistio '+vino+'/'+freq+' dias'
+      });
+    }
+  });
+
+  if(faltas.length>0){
+    fetch(ASIST_URL,{
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({records:faltas})
+    });
+    console.log('Cierre semanal: '+faltas.length+' faltas registradas');
+  }
 }
 function goPage(p){
   curPage=p;
@@ -1355,6 +1456,7 @@ async function init(){
   $('hero-date').textContent=dias[dn.getDay()]+', '+dn.getDate()+' de '+meses[dn.getMonth()];
   $('hero-sub').textContent='2026 · '+STUDENTS_DATA.length+' estudiantes activos';
   loadSheetsCache();
+  checkWeeklyClose();
   renderDayChips();
   renderSchedCards();
   updateSyncBanner();
