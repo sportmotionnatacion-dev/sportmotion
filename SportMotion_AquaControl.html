@@ -587,8 +587,13 @@ function renderAdultosPage(filter){
 var _adultosHoy={};
 
 function markAdulto(nombre, val){
-  _adultosHoy[nombre]=val;
+  const tod=today();
+  const existing=ALL_S.find(function(s){return s.key==='Adultos|libre|libre|'+tod;});
+  const st=existing?(existing.students.find(function(s){return s.nombre===nombre;})||{}):({});
+  const currentVal=_adultosHoy[nombre]!==undefined?_adultosHoy[nombre]:(st.asistio||'');
+  _adultosHoy[nombre]=(currentVal===val)?'':val;
   _saveAdultosQuiet();
+  renderAdultosPage($('adultos-search')?$('adultos-search').value||''  :'');
 }
 
 function _saveAdultosQuiet(){
