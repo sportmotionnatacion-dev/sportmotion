@@ -202,6 +202,20 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);max-width:480px
 .ri.rf{background:#fffbeb}
 .ri-nm{font-size:13px;font-weight:700}
 .ri-sub{display:flex;gap:8px;margin-top:3px;font-size:11px;color:var(--sub);flex-wrap:wrap;align-items:center}
+
+#pg-splash{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#0f766e 0%,#0891b2 100%);padding:24px}
+.splash-logo{font-size:72px;margin-bottom:16px;animation:bounce 1.5s infinite}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.splash-title{color:#fff;font-size:26px;font-weight:800;margin-bottom:4px;letter-spacing:-.5px}
+.splash-sub{color:rgba(255,255,255,.75);font-size:14px;margin-bottom:48px}
+.splash-btn{width:100%;max-width:320px;padding:18px 24px;border:none;border-radius:16px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:14px;display:flex;align-items:center;gap:14px;transition:.2s;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+.splash-btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.2)}
+.splash-btn-ico{font-size:28px}
+.splash-btn-txt{text-align:left}
+.splash-btn-txt-title{display:block;font-size:16px}
+.splash-btn-txt-sub{display:block;font-size:12px;font-weight:400;opacity:.8;margin-top:2px}
+.splash-btn-primary{background:#fff;color:#0f766e}
+.splash-btn-secondary{background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.3)}
 </style>
 </head>
 <body>
@@ -254,7 +268,27 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);max-width:480px
 </div>
 
 <!-- MAIN PAGES -->
-<div id="pg-asistencia" class="pg on">
+<div id="pg-splash" class="pg on">
+  <div class="splash-logo">🌊</div>
+  <div class="splash-title">SportMotion</div>
+  <div class="splash-sub">AquaControl · Sistema de Gestión</div>
+  <button class="splash-btn splash-btn-primary" onclick="enterAsistencia()">
+    <span class="splash-btn-ico">📋</span>
+    <span class="splash-btn-txt">
+      <span class="splash-btn-txt-title">Control de Asistencias</span>
+      <span class="splash-btn-txt-sub">Toma de lista diaria por grupos</span>
+    </span>
+  </button>
+  <button class="splash-btn splash-btn-secondary" onclick="enterPases()">
+    <span class="splash-btn-ico">⬆️</span>
+    <span class="splash-btn-txt">
+      <span class="splash-btn-txt-title">Pases de Nivel</span>
+      <span class="splash-btn-txt-sub">Acceso exclusivo para docentes</span>
+    </span>
+  </button>
+</div>
+
+<div id="pg-asistencia" class="pg">
   <div class="top-bar">
     <div class="top-logo">🌊</div>
     <div><div class="top-title">SportMotion</div><div class="top-sub">AquaControl</div></div>
@@ -358,6 +392,7 @@ body{font-family:var(--f);background:var(--bg);color:var(--text);max-width:480px
   <button class="nb" id="nb-hidro" onclick="goPage('hidro')"><span class="nb-ico">💦</span>Hidro</button>
   <button class="nb" id="nb-adultos" onclick="goPage('adultos')"><span class="nb-ico">👤</span>Adultos</button>
   <button class="nb" id="nb-reportes" onclick="goPage('reportes')"><span class="nb-ico">📈</span>Reportes</button>
+  <button class="nb" id="nb-pase" onclick="goPage('pase')"><span class="nb-ico">⬆️</span>Pases</button>
   <button class="nb" id="nb-historial" onclick="goPage('historial')"><span class="nb-ico">🗓️</span>Historial</button>
   <button class="nb" id="nb-config" onclick="goPage('config')"><span class="nb-ico">⚙️</span>Config</button>
 </div>
@@ -690,9 +725,282 @@ function closeWeekAdultos(){
     console.log('Cierre semanal: '+faltas.length+' faltas registradas');
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MÓDULO PASE DE NIVEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PASE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbys5O-Qzl1NU7Yr0QZ0eMkD2i2_72505tpU2LUVETG26xNtNPPymIAzcYVzNryl7NPA/exec';
+
+const NIVEL_ICONS = {
+  'Estrellita':'🌟','Tortuga':'🐢','Pez Dorado':'🐟','Delfín':'🐬',
+  'Tiburón':'🦈','Perfeccionamiento':'🏊','Precompetitivo':'🏅','Munat':'🏆','MUNAT':'🏆'
+};
+const NIVEL_SIGUIENTE = {
+  'Estrellita':'Tortuga','Tortuga':'Pez Dorado','Pez Dorado':'Delfín',
+  'Delfín':'Tiburón','Tiburón':'Perfeccionamiento','Perfeccionamiento':'Precompetitivo',
+  'Precompetitivo':'Munat'
+};
+
+var _paseDocente = null;
+var _paseNivelActual = null;
+var _paseHorarioActual = null;
+
+
+function enterAsistencia(){
+  goPage('asistencia');
+}
+
+function enterPases(){
+  goPage('pase');
+}
+function initPasePage(){
+  const saved = sessionStorage.getItem('paseDocente');
+  if(saved){
+    try{
+      _paseDocente = JSON.parse(saved);
+      showPaseDashboard();
+      return;
+    }catch(e){}
+  }
+  showPaseLogin();
+}
+
+function showPaseLogin(){
+  document.getElementById('pase-login-view').style.display='block';
+  document.getElementById('pase-dashboard-view').style.display='none';
+}
+
+function showPaseDashboard(){
+  document.getElementById('pase-login-view').style.display='none';
+  document.getElementById('pase-dashboard-view').style.display='block';
+  document.getElementById('pase-docente-nombre').textContent=_paseDocente.nombre;
+  renderPaseNiveles();
+}
+
+async function loginDocente(){
+  const usuario = document.getElementById('pase-usuario').value.trim();
+  const password = document.getElementById('pase-password').value.trim();
+  const errDiv = document.getElementById('pase-login-error');
+  errDiv.style.display='none';
+
+  if(!usuario || !password){
+    errDiv.textContent='Completa usuario y contraseña';
+    errDiv.style.display='block';
+    return;
+  }
+
+  // Buscar docente en TS (nombre como usuario, simplificado)
+  // Verificar contra lista de docentes del sistema
+  const nombreDocente = Object.keys(TS).find(function(t){
+    return t.toLowerCase().replace(/\s+/g,'') === usuario.toLowerCase().replace(/\s+/g,'');
+  });
+
+  if(!nombreDocente){
+    errDiv.textContent='Usuario no encontrado';
+    errDiv.style.display='block';
+    return;
+  }
+
+  // Password simple: primeras 4 letras del apellido en minúsculas
+  const partes = nombreDocente.split(' ');
+  const passEsperado = (partes[1]||partes[0]).substring(0,4).toLowerCase();
+  
+  if(password !== passEsperado){
+    errDiv.textContent='Contraseña incorrecta';
+    errDiv.style.display='block';
+    return;
+  }
+
+  _paseDocente = {nombre: nombreDocente, id: nombreDocente};
+  sessionStorage.setItem('paseDocente', JSON.stringify(_paseDocente));
+  showPaseDashboard();
+}
+
+function logoutDocente(){
+  _paseDocente = null;
+  sessionStorage.removeItem('paseDocente');
+  showPaseLogin();
+}
+
+function renderPaseNiveles(){
+  paseShowLayer('niveles');
+  const list = document.getElementById('pase-niveles-list');
+  list.innerHTML='';
+
+  // Obtener niveles únicos del docente
+  const niveles = new Set();
+  (TS[_paseDocente.nombre]||[]).forEach(function(s){
+    if(s.grupo !== 'Adultos' && s.grupo !== 'Hidrogimnasia') niveles.add(s.grupo);
+  });
+
+  if(!niveles.size){
+    list.innerHTML='<div style="color:#64748b;font-size:13px;padding:8px">No tienes niveles asignados</div>';
+    return;
+  }
+
+  niveles.forEach(function(nivel){
+    const icon = NIVEL_ICONS[nivel]||'🏊';
+    const card = document.createElement('div');
+    card.style.cssText='background:#fff;border-radius:14px;padding:18px 12px;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.07);cursor:pointer;transition:.15s';
+    card.innerHTML='<div style="font-size:32px;margin-bottom:6px">'+icon+'</div>'
+      +'<div style="font-size:13px;font-weight:700;color:#1e293b">'+nivel+'</div>';
+    card.onclick=(function(n){return function(){selectPaseNivel(n);};})(nivel);
+    card.onmouseenter=function(){this.style.transform='scale(1.03)';};
+    card.onmouseleave=function(){this.style.transform='scale(1)';};
+    list.appendChild(card);
+  });
+}
+
+function selectPaseNivel(nivel){
+  _paseNivelActual = nivel;
+  document.getElementById('pase-nivel-titulo').textContent = (NIVEL_ICONS[nivel]||'') + ' ' + nivel;
+  paseShowLayer('horarios');
+
+  const list = document.getElementById('pase-horarios-list');
+  list.innerHTML='';
+
+  const horarios=[];
+  const seen=new Set();
+  (TS[_paseDocente.nombre]||[]).forEach(function(s){
+    if(s.grupo!==nivel) return;
+    const k=s.frecuencia+'|'+s.horario;
+    if(!seen.has(k)){seen.add(k);horarios.push(s);}
+  });
+
+  horarios.sort(function(a,b){return a.horario<b.horario?-1:1;});
+
+  horarios.forEach(function(s){
+    const cnt = STUDENTS_DATA.filter(function(st){
+      return st.grupo===nivel && st.instructor===_paseDocente.nombre 
+        && st.frecuencia===s.frecuencia && st.horario===s.horario;
+    }).length;
+    const div=document.createElement('div');
+    div.style.cssText='background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer';
+    div.innerHTML='<div>'
+      +'<div style="font-size:14px;font-weight:600;color:#1e293b">🕐 '+s.horario+'</div>'
+      +'<div style="font-size:12px;color:#64748b;margin-top:2px">📅 '+s.frecuencia+'</div>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+      +'<span style="background:#e0f2fe;color:#0284c7;border-radius:6px;padding:3px 8px;font-size:12px;font-weight:600">👥 '+cnt+'</span>'
+      +'<span style="color:#94a3b8">›</span>'
+      +'</div>';
+    div.onclick=(function(sc){return function(){selectPaseHorario(sc);};})(s);
+    list.appendChild(div);
+  });
+}
+
+function selectPaseHorario(s){
+  _paseHorarioActual = s;
+  document.getElementById('pase-horario-titulo').textContent = '🕐 ' + s.horario + ' · ' + _paseNivelActual;
+  document.getElementById('pase-horario-sub').textContent = s.frecuencia;
+  paseShowLayer('estudiantes');
+  renderPaseEstudiantes();
+}
+
+function renderPaseEstudiantes(){
+  const list = document.getElementById('pase-estudiantes-list');
+  list.innerHTML='';
+
+  const estudiantes = STUDENTS_DATA.filter(function(st){
+    return st.grupo === _paseNivelActual 
+      && st.instructor === _paseDocente.nombre
+      && st.horario === _paseHorarioActual.horario
+      && st.frecuencia === _paseHorarioActual.frecuencia;
+  }).sort(function(a,b){return a.nombre<b.nombre?-1:1;});
+
+  if(!estudiantes.length){
+    list.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8"><div style="font-size:32px">🔍</div><p>Sin estudiantes encontrados</p></div>';
+    return;
+  }
+
+  const siguiente = NIVEL_SIGUIENTE[_paseNivelActual];
+
+  estudiantes.forEach(function(stu){
+    const card = document.createElement('div');
+    card.style.cssText='background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,.06)';
+
+    const info = document.createElement('div');
+    info.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:10px';
+    const av = document.createElement('div');
+    av.className='av';
+    av.textContent=ini(stu.nombre);
+    const nm = document.createElement('div');
+    nm.innerHTML='<div style="font-size:13px;font-weight:600;color:#1e293b">'+stu.nombre+'</div>'
+      +'<div style="font-size:11px;color:#64748b">'+stu.grupo+' · '+stu.frecuencia+'</div>';
+    info.appendChild(av);
+    info.appendChild(nm);
+    card.appendChild(info);
+
+    if(siguiente){
+      const btn = document.createElement('button');
+      btn.style.cssText='width:100%;padding:10px;background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer';
+      btn.textContent='⬆ Pasar a ' + siguiente;
+      btn.onclick=(function(s, sig){return function(){confirmPase(s, sig);};})(stu, siguiente);
+      card.appendChild(btn);
+    } else {
+      const badge = document.createElement('div');
+      badge.style.cssText='text-align:center;font-size:12px;color:#f59e0b;font-weight:600';
+      badge.textContent='🏆 Nivel máximo alcanzado';
+      card.appendChild(badge);
+    }
+
+    list.appendChild(card);
+  });
+}
+
+function confirmPase(stu, siguiente){
+  const msg = '¿Confirmas el pase de\n\n'+stu.nombre+'\n\nde '+_paseNivelActual+' a '+siguiente+'?';
+  if(!confirm(msg)) return;
+  registrarPase(stu, siguiente);
+}
+
+async function registrarPase(stu, siguiente){
+  const now = new Date();
+  const fecha = now.toISOString().substring(0,10);
+  const hora = now.toTimeString().substring(0,8);
+
+  const datos = {
+    action: 'registrarPase',
+    fecha: fecha,
+    hora: hora,
+    nombre: stu.nombre,
+    grupoActual: _paseNivelActual,
+    frecuencia: stu.frecuencia||'',
+    horario: _paseHorarioActual?_paseHorarioActual.horario:'',
+    instructor: _paseDocente.nombre,
+    nivelPropuesto: siguiente
+  };
+
+  try{
+    await fetch(PASE_SHEETS_URL, {
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify(datos)
+    });
+    toast('✅ Pase de '+stu.nombre+' registrado correctamente');
+  }catch(e){
+    toast('⚠️ Error al registrar pase');
+  }
+}
+
+function paseShowLayer(layer){
+  ['niveles','horarios','estudiantes'].forEach(function(l){
+    const el = document.getElementById('pase-layer-'+l);
+    if(el) el.style.display = l===layer?'block':'none';
+  });
+}
+
+function paseBack(to){
+  paseShowLayer(to);
+  if(to==='niveles') renderPaseNiveles();
+  if(to==='horarios') selectPaseNivel(_paseNivelActual);
+}
+
 function goPage(p){
   curPage=p;
-  ['asistencia','hidro','adultos','reportes','historial','config'].forEach(x=>{
+  ['splash','asistencia','hidro','adultos','pase','reportes','historial','config'].forEach(x=>{
     const pg=$('pg-'+x);
     if(pg) pg.className='pg'+(x===p?' on':'');
     const nb=$('nb-'+x);
@@ -702,6 +1010,7 @@ function goPage(p){
   if(p==='historial') renderHist($('hist-f').value||'');
   if(p==='config') loadCfgUI();
   if(p==='hidro') renderHidroPage();
+  if(p==='pase') initPasePage();
   if(p==='adultos') renderAdultosPage('');
 }
 
@@ -1393,7 +1702,7 @@ function exportJSON(){
 // ── INIT ──────────────────────────────────────────────────────────────────────
 
 const ASIST_URL = 'https://script.google.com/macros/s/AKfycbx8pPHFqN7vSzjxdFFK-37ziy9W43WWJBIepwaT2C6dUTdsTo8LfzCJo44t0ezLAMDRXA/exec';
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbylCe8wiPUiqXaKE7nBucubtwIi3uh24vVarglxaF0OhBWnuL3N6jaNscJR_nHa5cNq/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbys5O-Qzl1NU7Yr0QZ0eMkD2i2_72505tpU2LUVETG26xNtNPPymIAzcYVzNryl7NPA/exec';
 
 async function syncSheets(){
   try{
@@ -1451,6 +1760,7 @@ async function init(){
   $('hero-sub').textContent='2026 · '+STUDENTS_DATA.length+' estudiantes activos';
   loadSheetsCache();
   checkWeeklyClose();
+  goPage('splash');
   renderDayChips();
   renderSchedCards();
   updateSyncBanner();
@@ -1463,5 +1773,75 @@ async function init(){
 }
 document.addEventListener('DOMContentLoaded',init);
 </script>
+
+<div id="pg-pase" class="pg">
+  <!-- LOGIN VIEW -->
+  <div id="pase-login-view">
+    <div class="top-bar">
+      <div class="top-logo">⬆️</div>
+      <div><div class="top-title">Pase de Nivel</div><div class="top-sub">Ingreso docente</div></div>
+    </div>
+    <div style="padding:24px 16px;max-width:400px;margin:0 auto">
+      <div style="background:#fff;border-radius:16px;padding:24px;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:48px">🏊</div>
+          <div style="font-size:16px;font-weight:700;color:#1e293b;margin-top:8px">SportMotion AquaControl</div>
+          <div style="font-size:13px;color:#64748b">Módulo de Pase de Nivel</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Usuario</label>
+          <input id="pase-usuario" type="text" placeholder="tu usuario" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box">
+        </div>
+        <div style="margin-bottom:20px">
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Contraseña</label>
+          <input id="pase-password" type="password" placeholder="••••••" style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box">
+        </div>
+        <button onclick="loginDocente()" style="width:100%;padding:12px;background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">
+          Ingresar →
+        </button>
+        <div id="pase-login-error" style="color:#dc2626;font-size:12px;text-align:center;margin-top:12px;display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD DOCENTE -->
+  <div id="pase-dashboard-view" style="display:none">
+    <div class="top-bar" style="display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="top-logo">⬆️</div>
+        <div><div class="top-title">Pase de Nivel</div><div class="top-sub" id="pase-docente-nombre">-</div></div>
+      </div>
+      <button onclick="logoutDocente()" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer">Salir</button>
+    </div>
+
+    <!-- Capa 1: Niveles -->
+    <div id="pase-layer-niveles">
+      <div style="padding:12px 12px 4px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Mis niveles</div>
+      <div id="pase-niveles-list" style="padding:8px 12px;display:grid;grid-template-columns:1fr 1fr;gap:10px"></div>
+    </div>
+
+    <!-- Capa 2: Horarios -->
+    <div id="pase-layer-horarios" style="display:none">
+      <div style="padding:12px;display:flex;align-items:center;gap:8px">
+        <button onclick="paseBack('niveles')" style="background:#f1f5f9;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px">← Volver</button>
+        <div style="font-size:15px;font-weight:700;color:#1e293b" id="pase-nivel-titulo">-</div>
+      </div>
+      <div style="padding:0 12px 8px;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">Horarios disponibles</div>
+      <div id="pase-horarios-list" style="padding:0 12px"></div>
+    </div>
+
+    <!-- Capa 3: Estudiantes -->
+    <div id="pase-layer-estudiantes" style="display:none">
+      <div style="padding:12px;display:flex;align-items:center;gap:8px">
+        <button onclick="paseBack('horarios')" style="background:#f1f5f9;border:none;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px">← Volver</button>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b" id="pase-horario-titulo">-</div>
+          <div style="font-size:11px;color:#64748b" id="pase-horario-sub">-</div>
+        </div>
+      </div>
+      <div id="pase-estudiantes-list" style="padding:0 12px"></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
