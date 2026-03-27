@@ -730,8 +730,7 @@ function closeWeekAdultos(){
 // MÓDULO PASE DE NIVEL
 // ══════════════════════════════════════════════════════════════════════════════
 
-const PASE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbys5O-Qzl1NU7Yr0QZ0eMkD2i2_72505tpU2LUVETG26xNtNPPymIAzcYVzNryl7NPA/exec';
-
+const PASE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycby7cVe87sGo_Zfymq7LtSfxDeRl5kje5vrmQEf-z2uZKzGO8kzcg_sTbplucz9qdXXy/exec';
 const NIVEL_ICONS = {
   'Estrellita':'🌟','Tortuga':'🐢','Pez Dorado':'🐟','Delfín':'🐬',
   'Tiburón':'🦈','Perfeccionamiento':'🏊','Precompetitivo':'🏅','Munat':'🏆','MUNAT':'🏆'
@@ -958,30 +957,30 @@ function confirmPase(stu, siguiente){
 async function registrarPase(stu, siguiente){
   const now = new Date();
   const fecha = now.toISOString().substring(0,10);
-  const hora = now.toTimeString().substring(0,8);
+  const hora = now.toTimeString().substring(0,5);
 
-  const datos = {
+  const params = new URLSearchParams({
     action: 'registrarPase',
     fecha: fecha,
     hora: hora,
     nombre: stu.nombre,
     grupoActual: _paseNivelActual,
     frecuencia: stu.frecuencia||'',
-    horario: _paseHorarioActual?_paseHorarioActual.horario:'',
+    horario: _paseHorarioActual ? _paseHorarioActual.horario : '',
     instructor: _paseDocente.nombre,
     nivelPropuesto: siguiente
-  };
+  });
 
   try{
-    await fetch(PASE_SHEETS_URL, {
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify(datos)
-    });
-    toast('✅ Pase de '+stu.nombre+' registrado correctamente');
+    const resp = await fetch(PASE_SHEETS_URL + '?' + params.toString());
+    const json = await resp.json();
+    if(json.ok){
+      toast('✅ Pase de ' + stu.nombre + ' registrado');
+    } else {
+      toast('⚠️ Error: ' + (json.error||'desconocido'));
+    }
   }catch(e){
-    toast('⚠️ Error al registrar pase');
+    toast('⚠️ Error de red al registrar pase');
   }
 }
 
