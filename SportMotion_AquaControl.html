@@ -730,7 +730,7 @@ function closeWeekAdultos(){
 // MÓDULO PASE DE NIVEL
 // ══════════════════════════════════════════════════════════════════════════════
 
-const PASE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw0pe7jglKv5jammoV5YRnsrPvUpYRnHRQdCPIc25d-Sp7WUpqDlBfKoESgS3HvtBHN/exec';
+const PASE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz_dKIOkK_dgMDdEy448aQwNYzagh2ibaHqZ8SF8CJ69TfcfVtQ96Jh2PGJ1Jq8z92m/exec';
 
 const NIVEL_ICONS = {
   'Estrellita':'🌟','Tortuga':'🐢','Pez Dorado':'🐟','Delfín':'🐬',
@@ -1042,10 +1042,6 @@ function actualizarContador(){
 }
 
 async function guardarPases(){
-  if(_paseMarcados.size === 0){
-    toast('⚠️ No hay pases marcados');
-    return;
-  }
   const siguiente = NIVEL_SIGUIENTE[_paseNivelActual];
   const now = new Date();
   const fecha = now.toISOString().substring(0,10);
@@ -1053,33 +1049,56 @@ async function guardarPases(){
   const btn = document.getElementById('pase-save-btn');
   if(btn){ btn.textContent = '⏳ Guardando...'; btn.disabled = true; }
 
-  let ok = 0, err = 0;
-  for(const nombre of _paseMarcados){
-    const stu = STUDENTS_DATA.find(function(s){ return s.nombre === nombre; });
-    if(!stu) continue;
-    const params = new URLSearchParams({
-      action:'registrarPase', fecha, hora,
-      nombre: stu.nombre,
+  const horario = _paseHorarioActual ? _paseHorarioActual.horario : '';
+  const frecuencia = _paseHorarioActual ? _paseHorarioActual.frecuencia : '';
+
+  try {
+    // Paso 1: limpiar registros anteriores de este grupo/horario
+    const cleanParams = new URLSearchParams({
+      action: 'registrarPase',
+      fecha, hora,
+      nombre: '',  // sin nombre = solo limpiar
       grupoActual: _paseNivelActual,
-      frecuencia: stu.frecuencia||'',
-      horario: _paseHorarioActual ? _paseHorarioActual.horario : '',
+      frecuencia: frecuencia,
+      horario: horario,
       instructor: _paseDocente.nombre,
       nivelPropuesto: siguiente
     });
-    try{
-      const resp = await fetch(PASE_SHEETS_URL + '?' + params.toString());
-      const json = await resp.json();
-      json.ok ? ok++ : err++;
-    }catch(e){ err++; }
+    await fetch(PASE_SHEETS_URL + '?' + cleanParams.toString());
+
+    // Paso 2: insertar los marcados actuales
+    let ok = 0, err = 0;
+    for(const nombre of _paseMarcados){
+      const stu = STUDENTS_DATA.find(function(s){ return s.nombre === nombre; });
+      if(!stu) continue;
+      const params = new URLSearchParams({
+        action: 'registrarPase', fecha, hora,
+        nombre: stu.nombre,
+        grupoActual: _paseNivelActual,
+        frecuencia: frecuencia,
+        horario: horario,
+        instructor: _paseDocente.nombre,
+        nivelPropuesto: siguiente
+      });
+      try{
+        const resp = await fetch(PASE_SHEETS_URL + '?' + params.toString());
+        const json = await resp.json();
+        json.ok ? ok++ : err++;
+      }catch(e){ err++; }
+    }
+
+    if(err === 0){
+      const n = _paseMarcados.size;
+      toast('✅ ' + n + ' pase' + (n>1?'s':'') + ' guardado' + (n>1?'s':'') + ' correctamente');
+    } else {
+      toast('⚠️ ' + ok + ' guardados, ' + err + ' con error');
+    }
+  } catch(e) {
+    toast('⚠️ Error de red al guardar');
   }
 
-  if(err === 0){
-    toast('✅ ' + ok + ' pase' + (ok>1?'s':'') + ' guardado' + (ok>1?'s':'') + ' correctamente');
-    renderPaseEstudiantes();
-  } else {
-    toast('⚠️ ' + ok + ' guardados, ' + err + ' con error');
-    if(btn){ btn.textContent = '💾 Guardar cambios'; btn.disabled = false; }
-  }
+  if(btn){ btn.textContent = '💾 Guardar cambios'; btn.disabled = false; }
+  renderPaseEstudiantes();
 }
 
 function paseShowLayer(layer){
