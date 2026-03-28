@@ -730,7 +730,7 @@ function closeWeekAdultos(){
 // MÓDULO PASE DE NIVEL
 // ══════════════════════════════════════════════════════════════════════════════
 
-const PASE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz_dKIOkK_dgMDdEy448aQwNYzagh2ibaHqZ8SF8CJ69TfcfVtQ96Jh2PGJ1Jq8z92m/exec';
+const PASE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzTt5Nq2Wo4WBn0kyGgsGc0zKPDLvawNPV4fZM7ATD5BWGgd2EycRXJWw_X-goAOmPj/exec';
 
 const NIVEL_ICONS = {
   'Estrellita':'🌟','Tortuga':'🐢','Pez Dorado':'🐟','Delfín':'🐬',
@@ -1051,56 +1051,34 @@ async function guardarPases(){
 
   const horario = _paseHorarioActual ? _paseHorarioActual.horario : '';
   const frecuencia = _paseHorarioActual ? _paseHorarioActual.frecuencia : '';
+  const nombresArray = Array.from(_paseMarcados);
 
   try {
-    // Paso 1: limpiar registros anteriores de este grupo/horario
-    const cleanParams = new URLSearchParams({
+    const params = new URLSearchParams({
       action: 'registrarPase',
       fecha, hora,
-      nombre: '',  // sin nombre = solo limpiar
+      nombres: nombresArray.join('|'),
       grupoActual: _paseNivelActual,
       frecuencia: frecuencia,
       horario: horario,
       instructor: _paseDocente.nombre,
       nivelPropuesto: siguiente
     });
-    await fetch(PASE_SHEETS_URL + '?' + cleanParams.toString());
-
-    // Paso 2: insertar los marcados actuales
-    let ok = 0, err = 0;
-    for(const nombre of _paseMarcados){
-      const stu = STUDENTS_DATA.find(function(s){ return s.nombre === nombre; });
-      if(!stu) continue;
-      const params = new URLSearchParams({
-        action: 'registrarPase', fecha, hora,
-        nombre: stu.nombre,
-        grupoActual: _paseNivelActual,
-        frecuencia: frecuencia,
-        horario: horario,
-        instructor: _paseDocente.nombre,
-        nivelPropuesto: siguiente
-      });
-      try{
-        const resp = await fetch(PASE_SHEETS_URL + '?' + params.toString());
-        const json = await resp.json();
-        json.ok ? ok++ : err++;
-      }catch(e){ err++; }
-    }
-
-    if(err === 0){
-      const n = _paseMarcados.size;
-      toast('✅ ' + n + ' pase' + (n>1?'s':'') + ' guardado' + (n>1?'s':'') + ' correctamente');
+    const resp = await fetch(PASE_SHEETS_URL + '?' + params.toString());
+    const json = await resp.json();
+    if(json.ok){
+      const n = nombresArray.length;
+      toast('✅ ' + n + ' pase' + (n!==1?'s':'') + ' guardado' + (n!==1?'s':'') + ' correctamente');
     } else {
-      toast('⚠️ ' + ok + ' guardados, ' + err + ' con error');
+      toast('⚠️ Error: ' + (json.error||'desconocido'));
     }
   } catch(e) {
     toast('⚠️ Error de red al guardar');
   }
 
-  if(btn){ btn.textContent = '💾 Guardar cambios'; btn.disabled = false; }
+  if(btn){ btn.textContent = '💾 Guardar ' + _paseMarcados.size + ' pases'; btn.disabled = false; }
   renderPaseEstudiantes();
 }
-
 function paseShowLayer(layer){
   ['niveles','horarios','estudiantes'].forEach(function(l){
     const el = document.getElementById('pase-layer-'+l);
